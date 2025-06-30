@@ -105,6 +105,8 @@ class CarInterface(CarInterfaceBase):
         ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.CANFD_ALT_BUTTONS.value
       if ret.flags & HyundaiFlags.CANFD_CAMERA_SCC:
         ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.CAMERA_SCC.value
+      if ret.isAngleControl:
+        ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.CANFD_ANGLE_STEERING.value
       if ret.sccBus == 2:
         ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.LONG.value
       if params.get_bool("LFAButtonEngagement"):

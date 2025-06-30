@@ -35,7 +35,7 @@ class CanBus(CanBusBase):
     return self._cam
 
 
-def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque, apply_angle, max_torque, frame, adrv_160, adrv_1ea, acc_active):
+def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque, apply_angle, frame, adrv_160, adrv_1ea, acc_active):
   common_values = {
     "LKA_MODE": 2,
     "LKA_ICON": 2 if enabled else 1,
@@ -64,8 +64,8 @@ def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque,
       lkas_values["STEER_REQ"] = 0
       lkas_values["LKA_AVAILABLE"] = 3 if lat_active else 0
       lkas_values["LKAS_ANGLE_ACTIVE"] = 2 if lat_active else 0
-      lkas_values["LKAS_ANGLE_CMD"] = apply_angle if lat_active else 0
-      lkas_values["LKAS_ANGLE_MAX_TORQUE"] = max_torque if lat_active else 0
+      lkas_values["LKAS_ANGLE_CMD"] = apply_angle
+      lkas_values["LKAS_ANGLE_MAX_TORQUE"] = apply_torque if lat_active else 0
       lkas_values["LKAS_SIGNAL_1"] = 10
       lkas_values["LKAS_SIGNAL_2"] = 1
       lkas_values["LKAS_SIGNAL_3"] = 1
@@ -96,11 +96,10 @@ def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque,
         adrv_1ea_values = copy.copy(adrv_1ea)
         ret.append(packer.make_can_msg("ADRV_0x1ea", CAN.ECAN, adrv_1ea_values))
 
-    # stock angle max 119.9
     ang_values = {
       "LKAS_ANGLE_ACTIVE": 2 if lat_active else 1,
-      "LKAS_ANGLE_CMD": np.clip(apply_angle, -110, 110) if lat_active else 0,
-      "LKAS_ANGLE_MAX_TORQUE": max_torque if lat_active else 0,
+      "LKAS_ANGLE_CMD": apply_angle,
+      "LKAS_ANGLE_MAX_TORQUE": apply_torque if lat_active else 0,
     }
     ret.append(packer.make_can_msg("LFA_ALT", CAN.ECAN, ang_values))
   else:
