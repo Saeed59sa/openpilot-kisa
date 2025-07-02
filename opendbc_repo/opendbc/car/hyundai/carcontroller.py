@@ -36,6 +36,15 @@ AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, 6% superelevation. higher actual roll 
 MAX_LATERAL_ACCEL = ISO_LATERAL_ACCEL + (ACCELERATION_DUE_TO_GRAVITY * AVERAGE_ROAD_ROLL)  # ~3.6 m/s^2
 MAX_LATERAL_JERK = 3.0 + (ACCELERATION_DUE_TO_GRAVITY * AVERAGE_ROAD_ROLL)  # ~3.6 m/s^3
 
+def get_max_angle_delta(v_ego_raw: float, VM: VehicleModel, freq=100.):
+  max_curvature_rate_sec = MAX_LATERAL_JERK / (v_ego_raw ** 2)  # (1/m)/s
+  max_angle_rate_sec = math.degrees(VM.get_steer_from_curvature(max_curvature_rate_sec, v_ego_raw, 0))  # deg/s
+  return max_angle_rate_sec / float(freq) # hz
+
+def get_max_angle(v_ego_raw: float, VM: VehicleModel):
+  max_curvature = MAX_LATERAL_ACCEL / (v_ego_raw ** 2)  # 1/m
+  return math.degrees(VM.get_steer_from_curvature(max_curvature, v_ego_raw, 0))  # deg
+
 def process_hud_alert(enabled, fingerprint, hud_control):
   sys_warning = (hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw))
 
@@ -1602,15 +1611,6 @@ class CarController(CarControllerBase):
 
     return int(round(float(apply_torque)))
 
-
-  def get_max_angle_delta(v_ego_raw: float, VM: VehicleModel, freq=100.):
-    max_curvature_rate_sec = MAX_LATERAL_JERK / (v_ego_raw ** 2)  # (1/m)/s
-    max_angle_rate_sec = math.degrees(VM.get_steer_from_curvature(max_curvature_rate_sec, v_ego_raw, 0))  # deg/s
-    return max_angle_rate_sec / float(freq) # hz
-
-  def get_max_angle(v_ego_raw: float, VM: VehicleModel):
-    max_curvature = MAX_LATERAL_ACCEL / (v_ego_raw ** 2)  # 1/m
-    return math.degrees(VM.get_steer_from_curvature(max_curvature, v_ego_raw, 0))  # deg
 
   def apply_hyundai_steer_angle_limits(self, CS, CC, apply_angle: float) -> tuple[float, float]:
     lat_active = CC.latActive
