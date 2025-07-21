@@ -1127,7 +1127,7 @@ class CarController(CarControllerBase):
           if btn_signal is not None:
             if btn_signal == 3 and self.KCC.ctrl_gap != (CS.DistSet if CS.DistSet > 0 else CS.cruiseGapSet):
               self.gap_now = CS.DistSet if CS.DistSet > 0 else CS.cruiseGapSet
-              self.pause_time += 1 if self.gap_now == self.gap_prev else 0
+              self.pause_time = self.pause_time + 1 if self.gap_now == self.gap_prev else 0
               self.gap_prev = self.gap_now
               pause_time = np.interp(self.KCC.t_interval, [7, 80], [90, 250])
               if self.pause_time > pause_time:
@@ -1144,7 +1144,7 @@ class CarController(CarControllerBase):
                 self.refresh_time = 0
             elif btn_signal in (1,2) and self.KCC.ctrl_speed != round(CS.VSetDis):
               self.cruise_set_now = round(CS.VSetDis)
-              self.pause_time += 1 if self.cruise_set_now == self.cruise_set_prev else 0
+              self.pause_time = self.pause_time + 1 if self.cruise_set_now == self.cruise_set_prev else 0
               self.cruise_set_prev = self.cruise_set_now
               pause_time = np.interp(self.KCC.t_interval, [7, 80], [90, 250])
               if self.pause_time > pause_time:
@@ -1276,7 +1276,8 @@ class CarController(CarControllerBase):
             self.res_speed_timer = 50
             self.refresh_time2 = randint(10,30) * 0.01
 
-      if self.CP.capacitiveSteeringWheel and self.btnsignal is None and (not (self.on_speed_control or self.on_speed_bump_control or self.curv_speed_control or self.cut_in_control or self.driver_scc_set_control)):
+      if self.CP.capacitiveSteeringWheel and self.btnsignal is None and not self.standstill_res_button and not self.cruise_gap_adjusting and \
+       (not (self.on_speed_control or self.on_speed_bump_control or self.curv_speed_control or self.cut_in_control or self.driver_scc_set_control)):
         blinker = CS.out.leftBlinker or CS.out.rightBlinker
         if (self.frame - self.last_button_frame2) * DT_CTRL > self.refresh_time3:
           self.last_button_frame2 = self.frame
