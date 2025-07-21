@@ -278,6 +278,8 @@ class CarController(CarControllerBase):
     self.regen_stop_pre_activated = False
     self.regen_stop_timer = 0
 
+    self.wheel_touched = False
+
     self.weights = [0.51, 0.49]
 
     # self.usf = 0
@@ -374,15 +376,20 @@ class CarController(CarControllerBase):
 
       lkas_max_torque = CarControllerParams.LKAS_MAX_TORQUE
       if abs(CS.out.steeringTorque) > 200:
-        angle_above_timer_step = int(np.interp(self.lkas_max_torque, [150, 250], [1, 10]))
-        self.driver_steering_angle_above_timer -= angle_above_timer_step
-        if self.driver_steering_angle_above_timer <= 20:
-          self.driver_steering_angle_above_timer = 20
+        fast = 10 if CS.wheel_touched else 0
+        step = int(np.interp(self.lkas_max_torque, [150, 250], [1 + fast, 10 + fast]))
+        min_val = 0 if CS.wheel_touched else 20
+        self.driver_steering_angle_above_timer = max(min_val, self.driver_steering_angle_above_timer - step)
+        if self.driver_steering_angle_above_timer <= 0:
+          self.wheel_touched = True
+      elif CS.wheel_touched and self.wheel_touched:
+        self.driver_steering_angle_above_timer = max(0, self.driver_steering_angle_above_timer - 1)
       else:
-        angle_above_timer_step2 = int(np.interp(self.lkas_max_torque, [30, 250], [10, 1]))
-        self.driver_steering_angle_above_timer += angle_above_timer_step2 if not CS.wheel_touched else +1
+        fast = 10 if not CS.wheel_touched and self.CP.capacitiveSteeringWheel else 0
+        step = 1 if CS.wheel_touched else int(np.interp(self.lkas_max_torque, [30, 250], [10 + fast, 1 + fast]))
+        self.driver_steering_angle_above_timer = min(150, self.driver_steering_angle_above_timer + step)
         if self.driver_steering_angle_above_timer >= 150:
-          self.driver_steering_angle_above_timer = 150
+          self.wheel_touched = False
 
       curv_weight = 1.0 if (CS.out.vEgo * CV.MS_TO_KPH < 40 or CS.out.leftBlinker or CS.out.rightBlinker) else np.interp(self.model_speed, [50, 100, 255], [1.5, 1.0, 0.5])
       ego_weight = min(1.0, np.interp(CS.out.vEgo * CV.MS_TO_KPH, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], [0.2, 0.25, 0.32, 0.45, 0.6, 0.7, 0.8, 0.9, 1.0, 1.0, 1.0]))
