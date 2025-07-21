@@ -1163,13 +1163,13 @@ class CarController(CarControllerBase):
             if self.KCC.ctrl_gap == (CS.DistSet if CS.DistSet > 0 else CS.cruiseGapSet) and self.cruise_gap_adjusting:
               self.cruise_gap_adjusting = False
               self.last_button_frame = self.frame
-              self.refresh_time = randint(10,30) * 0.01
+              self.refresh_time = randint(15,30) * 0.01
               self.pause_time = 0
               self.refresh_count = 0
             if self.KCC.ctrl_speed == round(CS.VSetDis) and self.cruise_speed_adjusting:
               self.cruise_speed_adjusting = False
               self.last_button_frame = self.frame
-              self.refresh_time = randint(10,30) * 0.01
+              self.refresh_time = randint(15,30) * 0.01
               self.pause_time = 0
               self.refresh_count = 0
         else:
@@ -1186,6 +1186,7 @@ class CarController(CarControllerBase):
           self.btnsignal = 0
           self.pause_time = 0
           self.refresh_count = 0
+          self.refresh_time = 0.25
         if self.standstill_status_canfd and CS.out.vEgo > 0.3:
           self.standstill_status_canfd = False
           self.standstill_res_button = False
@@ -1275,7 +1276,7 @@ class CarController(CarControllerBase):
             self.res_speed_timer = 50
             self.refresh_time2 = randint(10,30) * 0.01
 
-      if self.CP.capacitiveSteeringWheel and self.btnsignal is None:
+      if self.CP.capacitiveSteeringWheel and self.btnsignal is None and (not (self.on_speed_control or self.on_speed_bump_control or self.curv_speed_control or self.cut_in_control or self.driver_scc_set_control)):
         blinker = CS.out.leftBlinker or CS.out.rightBlinker
         if (self.frame - self.last_button_frame2) * DT_CTRL > self.refresh_time3:
           self.last_button_frame2 = self.frame

@@ -112,8 +112,8 @@ class KisaCruiseControl():
     self.cruise_road_limitspd_offset = int(self.params.get("CruiseSetwithRoadLimitSpeedOffset", encoding="utf8"))
 
   def button_status(self, CS):
-    if not CS.cruise_active or CS.cruise_buttons[-1] != Buttons.NONE: 
-      self.wait_timer2 = 80 
+    if not CS.cruise_active or CS.cruise_buttons[-1] != Buttons.NONE or CS.main_buttons[-1] or CS.lfa_buttons[-1]: 
+      self.wait_timer2 = 80 if not CS.CP.carFingerprint in CANFD_CAR else 100
     elif self.wait_timer2: 
       self.wait_timer2 -= 1
     else:
