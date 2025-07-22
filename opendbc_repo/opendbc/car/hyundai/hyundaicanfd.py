@@ -3,6 +3,14 @@ import numpy as np
 from opendbc.car import CanBusBase
 from opendbc.car.hyundai.values import HyundaiFlags
 
+def hyundai_crc8(data: bytes) -> int: #carrot
+  poly = 0x2F
+  crc = 0xFF
+  for byte in data:
+    crc ^= byte
+    for _ in range(8):
+      crc = ((crc << 1) ^ poly) & 0xFF if crc & 0x80 else (crc << 1) & 0xFF
+  return crc ^ 0xFF
 
 class CanBus(CanBusBase):
   def __init__(self, CP, fingerprint=None, lka_steering=None) -> None:
@@ -151,14 +159,18 @@ def create_buttons(packer, CP, CAN, cnt, btn, regen = None, r_pad = None, l_pad 
     "CRUISE_BUTTONS": btn,
   }
 
-  if regen is True:
-    values["CRUISE_BUTTONS"] = 0
+  if regen is True and btn == 0:
     if r_pad is True:
       values["RIGHT_PADDLE"] = 1
     if l_pad is True:
       values["LEFT_PADDLE"] = 1
 
   bus = CAN.ECAN if CP.flags & HyundaiFlags.CANFD_LKA_STEERING else CAN.CAM
+
+  values["_CHECKSUM"] = 0
+  dat = packer.make_can_msg("CRUISE_BUTTONS", bus, values)[1]
+  values["_CHECKSUM"] = hyundai_crc8(dat[1:8])
+
   return packer.make_can_msg("CRUISE_BUTTONS", bus, values)
 
 def create_acc_cancel(packer, CP, CAN, cruise_info_copy):
