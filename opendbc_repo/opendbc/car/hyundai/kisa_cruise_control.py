@@ -420,7 +420,7 @@ class KisaCruiseControl():
     self.driverSccSetControl = False
 
     if CS.driverAcc_time and CS.cruise_set_mode in (1,2,4):
-      self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+      self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
       self.driverSccSetControl = True
       return min(max(CS.clu_Vanz + (3 if not CS.is_metric else 5), 30 if not CS.is_metric else 50), navi_speed)
     # elif self.gasPressed_old:
@@ -428,23 +428,23 @@ class KisaCruiseControl():
     #   ctrl_speed = max(min_control_speed, ctrl_speed, clu_Vanz)
     #   CS.set_cruise_speed(ctrl_speed)
     elif self.sm['controlsState'].resSpeed > 21:
-      self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+      self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
       res_speed = max(min_control_speed, self.sm['controlsState'].resSpeed)
       return min(res_speed, navi_speed)
     elif CS.cruise_set_mode in (1,2,3,4):
       if self.sm['selfdriveState'].experimentalMode and CS.CP.sccBus == 0:
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
         var_speed = min(round(self.sm['controlsState'].vFuture), navi_speed)
       elif CS.out.brakeLights and CS.out.vEgo == 0 and CS.cruise_set_mode in (1,2,4):
         self.faststart = True
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
         var_speed = min(navi_speed, 30 if not CS.is_metric else 50)
       elif self.onSpeedBumpControl2 and not self.lead_0.status:
         var_speed = min(navi_speed, 30 if not CS.is_metric else 60)
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
       elif self.onSpeedBumpControl:
         var_speed = min(navi_speed, 20 if not CS.is_metric else 30)
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
       elif self.faststart and round(self.sm['controlsState'].vFuture) <= (25 if not CS.is_metric else 40):
         var_speed = min(navi_speed, 30 if not CS.is_metric else 50)
       elif (self.lead_0.status or self.lead_1.status) and round(self.sm['controlsState'].vFuture) >= (min_control_speed-(4 if not CS.is_metric else 7)) and CS.cruise_set_mode in (1,2,4):
@@ -460,7 +460,7 @@ class KisaCruiseControl():
           self.cut_in_run_timer = 1500
         d_ratio = np.interp(CS.clu_Vanz, [40, 110], [0.3, 0.19])
         if self.cut_in_run_timer and dRel < CS.clu_Vanz * d_ratio: # keep decel when cut_in, max running time 15sec
-          self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+          self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
           self.cutInControl = True
           var_speed = min(round(self.sm['controlsState'].vFutureA), navi_speed)
         elif vRel > (-3 if not CS.is_metric else -5):
@@ -470,18 +470,18 @@ class KisaCruiseControl():
           self.cutInControl = False
         else:
           var_speed = min(round(self.sm['controlsState'].vFuture), navi_speed)
-          self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+          self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
           self.cut_in_run_timer = 0
           self.cutInControl = False
       elif self.lead_0.status and round(self.sm['controlsState'].vFuture) < min_control_speed and CS.cruise_set_mode in (1,2,4):
         self.faststart = False
         var_speed = min(round(self.sm['controlsState'].vFuture), navi_speed)
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
         self.cutInControl = False
       elif CS.cruise_set_mode == 3:
         self.faststart = False
         var_speed = navi_speed
-        self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+        self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
         self.cutInControl = False
       else:
         self.faststart = False
@@ -491,7 +491,7 @@ class KisaCruiseControl():
         self.cutInControl = False
     else:
       var_speed = navi_speed
-      self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+      self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
       self.cut_in_run_timer = 0
       self.cutInControl = False
 
@@ -534,7 +534,7 @@ class KisaCruiseControl():
     return round(min(var_speed, v_curv_speed, o_curv_speed))
 
   def get_live_gap(self, CS, spd_gap_on):
-    self.t_interval = randint(self.t_interval2+3, self.t_interval2+5) if not CS.is_metric else randint(self.t_interval2, self.t_interval2+2)
+    self.t_interval = self.t_interval2+3 if not CS.is_metric else self.t_interval2
     gap_to_set = CS.DistSet if CS.DistSet > 0 else CS.cruiseGapSet
     now_gap = gap_to_set
     if 0 < CS.lead_distance <= 149 and CS.lead_objspd < -4 and CS.clu_Vanz > 30 and 0 < self.e2e_x < 120 and self.try_early_stop:
