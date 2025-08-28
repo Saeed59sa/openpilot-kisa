@@ -115,6 +115,7 @@ procs = [
   PythonProcess("statsd", "system.statsd", always_run),
   PythonProcess("feedbackd", "selfdrive.ui.feedback.feedbackd", only_onroad),
 
+  PythonProcess("remoteAgent", "selfdrive.remote.remote_agent", always_run),
   PythonProcess("kupdate", "system.kupdate", always_run),
 
   # debug procs
