@@ -2,21 +2,105 @@
 
 #include <algorithm>
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QImage>
+#include <QLabel>
+#include <QPixmap>
 #include <QScrollBar>
 #include <QStyle>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QrCode.hpp>
 
-#include "selfdrive/ui/ui.h"
+#include "common/params.h"
 #include "selfdrive/ui/qt/qt_window.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
+#include "selfdrive/ui/ui.h"
 
 static const int ICON_WIDTH = 49;
 
 // Networking functions
 
-Networking::Networking(QWidget* parent, bool show_advanced) : QFrame(parent) {
+class RemoteAccessWidget : public QWidget {
+public:
+  explicit RemoteAccessWidget(QWidget *parent = nullptr) : QWidget(parent) {
+    QVBoxLayout *lay = new QVBoxLayout(this);
+    toggle_ = new ParamControl(
+        "EnableRemoteAccess", QObject::tr("Remote Access"),
+        QObject::tr("Enable secure remote access for support and maintenance."),
+        "");
+    lay->addWidget(toggle_);
+
+    QWidget *row = new QWidget(this);
+    QHBoxLayout *h = new QHBoxLayout(row);
+    h->setContentsMargins(0, 0, 0, 0);
+    url_ = new LabelControl(QObject::tr("Login Link"), "");
+    QPushButton *copyBtn = new QPushButton(QObject::tr("Copy"));
+    QObject::connect(copyBtn, &QPushButton::clicked, [this]() {
+      QGuiApplication::clipboard()->setText(current_url_);
+    });
+    h->addWidget(url_);
+    h->addWidget(copyBtn);
+    lay->addWidget(row);
+
+    code_ = new LabelControl(QObject::tr("Login Code"), "");
+    lay->addWidget(code_);
+
+    qr_label_ = new QLabel(this);
+    qr_label_->setAlignment(Qt::AlignCenter);
+    lay->addWidget(qr_label_);
+
+    timer_ = new QTimer(this);
+    QObject::connect(timer_, &QTimer::timeout, [this]() { refreshURL(); });
+    timer_->start(1500);
+    refreshURL();
+  }
+
+private:
+  void refreshURL() {
+    Params p;
+    current_url_ = QString::fromStdString(p.get("RemoteAccessLoginURL"));
+    url_->setText(current_url_);
+
+    QString code = current_url_.section('/', -1);
+    code_->setText(code);
+
+    if (!current_url_.isEmpty()) {
+      using qrcodegen::QrCode;
+      QrCode qr =
+          QrCode::encodeText(current_url_.toUtf8().data(), QrCode::Ecc::LOW);
+      int sz = qr.getSize();
+      QImage im(sz, sz, QImage::Format_RGB32);
+      QRgb black = qRgb(0, 0, 0);
+      QRgb white = qRgb(255, 255, 255);
+      for (int y = 0; y < sz; y++) {
+        for (int x = 0; x < sz; x++) {
+          im.setPixel(x, y, qr.getModule(x, y) ? black : white);
+        }
+      }
+      int final_sz = ((300 / sz) - 1) * sz;
+      qr_label_->setPixmap(QPixmap::fromImage(
+          im.scaled(final_sz, final_sz, Qt::KeepAspectRatio), Qt::MonoOnly));
+      qr_label_->setVisible(true);
+    } else {
+      qr_label_->clear();
+      qr_label_->setVisible(false);
+    }
+  }
+
+  ParamControl *toggle_ = nullptr;
+  LabelControl *url_ = nullptr;
+  LabelControl *code_ = nullptr;
+  QLabel *qr_label_ = nullptr;
+  QTimer *timer_ = nullptr;
+  QString current_url_;
+};
+
+Networking::Networking(QWidget *parent, bool show_advanced) : QFrame(parent) {
   main_layout = new QStackedLayout(this);
 
   wifi = new WifiManager(this);
@@ -25,22 +109,26 @@ Networking::Networking(QWidget* parent, bool show_advanced) : QFrame(parent) {
   connect(uiState(), &UIState::hotspotSignal, this, &Networking::hotspoton);
 
   wifiScreen = new QWidget(this);
-  QVBoxLayout* vlayout = new QVBoxLayout(wifiScreen);
+  QVBoxLayout *vlayout = new QVBoxLayout(wifiScreen);
   vlayout->setContentsMargins(20, 20, 20, 20);
   if (show_advanced) {
-    QPushButton* advancedSettings = new QPushButton(tr("Advanced"));
+    QPushButton *advancedSettings = new QPushButton(tr("Advanced"));
     advancedSettings->setObjectName("advanced_btn");
     advancedSettings->setStyleSheet("margin-right: 30px;");
     advancedSettings->setFixedSize(400, 100);
-    connect(advancedSettings, &QPushButton::clicked, [=]() { main_layout->setCurrentWidget(an); });
+    connect(advancedSettings, &QPushButton::clicked,
+            [=]() { main_layout->setCurrentWidget(an); });
     vlayout->addSpacing(10);
     vlayout->addWidget(advancedSettings, 0, Qt::AlignRight);
     vlayout->addSpacing(10);
   }
 
+  vlayout->addWidget(new RemoteAccessWidget(this));
+
   wifiWidget = new WifiUI(this, wifi);
   wifiWidget->setObjectName("wifiWidget");
-  connect(wifiWidget, &WifiUI::connectToNetwork, this, &Networking::connectToNetwork);
+  connect(wifiWidget, &WifiUI::connectToNetwork, this,
+          &Networking::connectToNetwork);
 
   ScrollView *wifiScroller = new ScrollView(wifiWidget, this);
   wifiScroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -48,8 +136,10 @@ Networking::Networking(QWidget* parent, bool show_advanced) : QFrame(parent) {
   main_layout->addWidget(wifiScreen);
 
   an = new AdvancedNetworking(this, wifi);
-  connect(an, &AdvancedNetworking::backPress, [=]() { main_layout->setCurrentWidget(wifiScreen); });
-  connect(an, &AdvancedNetworking::requestWifiScreen, [=]() { main_layout->setCurrentWidget(wifiScreen); });
+  connect(an, &AdvancedNetworking::backPress,
+          [=]() { main_layout->setCurrentWidget(wifiScreen); });
+  connect(an, &AdvancedNetworking::requestWifiScreen,
+          [=]() { main_layout->setCurrentWidget(wifiScreen); });
   main_layout->addWidget(an);
 
   QPalette pal = palette();
@@ -75,8 +165,10 @@ Networking::Networking(QWidget* parent, bool show_advanced) : QFrame(parent) {
 }
 
 void Networking::setPrimeType(PrimeState::Type type) {
-  an->setGsmVisible(type == PrimeState::PRIME_TYPE_NONE || type == PrimeState::PRIME_TYPE_LITE);
-  wifi->ipv4_forward = (type == PrimeState::PRIME_TYPE_NONE || type == PrimeState::PRIME_TYPE_LITE);
+  an->setGsmVisible(type == PrimeState::PRIME_TYPE_NONE ||
+                    type == PrimeState::PRIME_TYPE_LITE);
+  wifi->ipv4_forward = (type == PrimeState::PRIME_TYPE_NONE ||
+                        type == PrimeState::PRIME_TYPE_LITE);
 }
 
 void Networking::refresh() {
@@ -96,7 +188,9 @@ void Networking::connectToNetwork(const Network n) {
   } else if (n.security_type == SecurityType::OPEN) {
     wifi->connect(n, false);
   } else if (n.security_type == SecurityType::WPA) {
-    QString pass = InputDialog::getText(tr("Enter password"), this, tr("for \"%1\"").arg(QString::fromUtf8(n.ssid)), true, 8);
+    QString pass = InputDialog::getText(
+        tr("Enter password"), this,
+        tr("for \"%1\"").arg(QString::fromUtf8(n.ssid)), true, 8);
     if (!pass.isEmpty()) {
       wifi->connect(n, false, pass);
     }
@@ -106,16 +200,16 @@ void Networking::connectToNetwork(const Network n) {
 void Networking::wrongPassword(const QString &ssid) {
   if (wifi->seenNetworks.contains(ssid)) {
     const Network &n = wifi->seenNetworks.value(ssid);
-    QString pass = InputDialog::getText(tr("Wrong password"), this, tr("for \"%1\"").arg(QString::fromUtf8(n.ssid)), true, 8);
+    QString pass = InputDialog::getText(
+        tr("Wrong password"), this,
+        tr("for \"%1\"").arg(QString::fromUtf8(n.ssid)), true, 8);
     if (!pass.isEmpty()) {
       wifi->connect(n, false, pass);
     }
   }
 }
 
-void Networking::showEvent(QShowEvent *event) {
-  wifi->start();
-}
+void Networking::showEvent(QShowEvent *event) { wifi->start(); }
 
 void Networking::hideEvent(QHideEvent *event) {
   main_layout->setCurrentWidget(wifiScreen);
@@ -124,14 +218,15 @@ void Networking::hideEvent(QHideEvent *event) {
 
 // AdvancedNetworking functions
 
-AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWidget(parent), wifi(wifi) {
+AdvancedNetworking::AdvancedNetworking(QWidget *parent, WifiManager *wifi)
+    : QWidget(parent), wifi(wifi) {
 
-  QVBoxLayout* main_layout = new QVBoxLayout(this);
+  QVBoxLayout *main_layout = new QVBoxLayout(this);
   main_layout->setMargin(40);
   main_layout->setSpacing(20);
 
   // Back button
-  QPushButton* back = new QPushButton(tr("Back"));
+  QPushButton *back = new QPushButton(tr("Back"));
   back->setObjectName("back_btn");
   back->setFixedSize(400, 100);
   connect(back, &QPushButton::clicked, [=]() { emit backPress(); });
@@ -140,22 +235,31 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
   ListWidget *list = new ListWidget(this);
   // Enable tethering layout
   const bool hotspotEnabled = params.getBool("KisaHotspotOnBoot");
-  tetheringToggle = new ToggleControl(tr("Enable Tethering"), "", "", wifi->isTetheringEnabled() || hotspotEnabled);
+  tetheringToggle =
+      new ToggleControl(tr("Enable Tethering"), "", "",
+                        wifi->isTetheringEnabled() || hotspotEnabled);
   list->addItem(tetheringToggle);
-  QObject::connect(tetheringToggle, &ToggleControl::toggleFlipped, this, &AdvancedNetworking::toggleTethering);
+  QObject::connect(tetheringToggle, &ToggleControl::toggleFlipped, this,
+                   &AdvancedNetworking::toggleTethering);
 
   // Hotspot Autorun toggle
-  hotspotToggle = new ToggleControl(tr("Hotspot Autorun"), "", "", hotspotEnabled);
-  QObject::connect(hotspotToggle, &ToggleControl::toggleFlipped, [=](bool state) {
-    params.putBool("KisaHotspotOnBoot", state);
-    if (state) toggleTethering(state);
-  });
+  hotspotToggle =
+      new ToggleControl(tr("Hotspot Autorun"), "", "", hotspotEnabled);
+  QObject::connect(hotspotToggle, &ToggleControl::toggleFlipped,
+                   [=](bool state) {
+                     params.putBool("KisaHotspotOnBoot", state);
+                     if (state)
+                       toggleTethering(state);
+                   });
   list->addItem(hotspotToggle);
 
   // Change tethering password
-  ButtonControl *editPasswordButton = new ButtonControl(tr("Tethering Password"), tr("EDIT"));
+  ButtonControl *editPasswordButton =
+      new ButtonControl(tr("Tethering Password"), tr("EDIT"));
   connect(editPasswordButton, &ButtonControl::clicked, [=]() {
-    QString pass = InputDialog::getText(tr("Enter new tethering password"), this, "", true, 8, wifi->getTetheringPassword());
+    QString pass =
+        InputDialog::getText(tr("Enter new tethering password"), this, "", true,
+                             8, wifi->getTetheringPassword());
     if (!pass.isEmpty()) {
       wifi->changeTetheringPassword(pass);
     }
@@ -168,57 +272,79 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
 
   // Roaming toggle
   const bool roamingEnabled = params.getBool("GsmRoaming");
-  roamingToggle = new ToggleControl(tr("Enable Roaming"), "", "", roamingEnabled);
-  QObject::connect(roamingToggle, &ToggleControl::toggleFlipped, [=](bool state) {
-    params.putBool("GsmRoaming", state);
-    wifi->updateGsmSettings(state, QString::fromStdString(params.get("GsmApn")), params.getBool("GsmMetered"));
-  });
+  roamingToggle =
+      new ToggleControl(tr("Enable Roaming"), "", "", roamingEnabled);
+  QObject::connect(
+      roamingToggle, &ToggleControl::toggleFlipped, [=](bool state) {
+        params.putBool("GsmRoaming", state);
+        wifi->updateGsmSettings(state,
+                                QString::fromStdString(params.get("GsmApn")),
+                                params.getBool("GsmMetered"));
+      });
   list->addItem(roamingToggle);
 
   // APN settings
   editApnButton = new ButtonControl(tr("APN Setting"), tr("EDIT"));
   connect(editApnButton, &ButtonControl::clicked, [=]() {
     const QString cur_apn = QString::fromStdString(params.get("GsmApn"));
-    QString apn = InputDialog::getText(tr("Enter APN"), this, tr("leave blank for automatic configuration"), false, -1, cur_apn).trimmed();
+    QString apn =
+        InputDialog::getText(tr("Enter APN"), this,
+                             tr("leave blank for automatic configuration"),
+                             false, -1, cur_apn)
+            .trimmed();
 
     if (apn.isEmpty()) {
       params.remove("GsmApn");
     } else {
       params.put("GsmApn", apn.toStdString());
     }
-    wifi->updateGsmSettings(params.getBool("GsmRoaming"), apn, params.getBool("GsmMetered"));
+    wifi->updateGsmSettings(params.getBool("GsmRoaming"), apn,
+                            params.getBool("GsmMetered"));
   });
   list->addItem(editApnButton);
 
   // Cellular metered toggle (prime lite or none)
   const bool metered = params.getBool("GsmMetered");
-  cellularMeteredToggle = new ToggleControl(tr("Cellular Metered"), tr("Prevent large data uploads when on a metered cellular connection"), "", metered);
-  QObject::connect(cellularMeteredToggle, &SshToggle::toggleFlipped, [=](bool state) {
-    params.putBool("GsmMetered", state);
-    wifi->updateGsmSettings(params.getBool("GsmRoaming"), QString::fromStdString(params.get("GsmApn")), state);
-  });
+  cellularMeteredToggle = new ToggleControl(
+      tr("Cellular Metered"),
+      tr("Prevent large data uploads when on a metered cellular connection"),
+      "", metered);
+  QObject::connect(
+      cellularMeteredToggle, &SshToggle::toggleFlipped, [=](bool state) {
+        params.putBool("GsmMetered", state);
+        wifi->updateGsmSettings(params.getBool("GsmRoaming"),
+                                QString::fromStdString(params.get("GsmApn")),
+                                state);
+      });
   list->addItem(cellularMeteredToggle);
 
   // Wi-Fi metered toggle
-  std::vector<QString> metered_button_texts{tr("default"), tr("metered"), tr("unmetered")};
-  wifiMeteredToggle = new MultiButtonControl(tr("Wi-Fi Network Metered"), tr("Prevent large data uploads when on a metered Wi-Fi connection"), "", metered_button_texts);
-  QObject::connect(wifiMeteredToggle, &MultiButtonControl::buttonClicked, [=](int id) {
-    wifiMeteredToggle->setEnabled(false);
-    MeteredType metered = MeteredType::UNKNOWN;
-    if (id == NM_METERED_YES) {
-      metered = MeteredType::YES;
-    } else if (id == NM_METERED_NO) {
-      metered = MeteredType::NO;
-    }
-    auto pending_call = wifi->setCurrentNetworkMetered(metered);
-    if (pending_call) {
-      QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(*pending_call);
-      QObject::connect(watcher, &QDBusPendingCallWatcher::finished, this, [=]() {
-        refresh();
-        watcher->deleteLater();
+  std::vector<QString> metered_button_texts{tr("default"), tr("metered"),
+                                            tr("unmetered")};
+  wifiMeteredToggle = new MultiButtonControl(
+      tr("Wi-Fi Network Metered"),
+      tr("Prevent large data uploads when on a metered Wi-Fi connection"), "",
+      metered_button_texts);
+  QObject::connect(
+      wifiMeteredToggle, &MultiButtonControl::buttonClicked, [=](int id) {
+        wifiMeteredToggle->setEnabled(false);
+        MeteredType metered = MeteredType::UNKNOWN;
+        if (id == NM_METERED_YES) {
+          metered = MeteredType::YES;
+        } else if (id == NM_METERED_NO) {
+          metered = MeteredType::NO;
+        }
+        auto pending_call = wifi->setCurrentNetworkMetered(metered);
+        if (pending_call) {
+          QDBusPendingCallWatcher *watcher =
+              new QDBusPendingCallWatcher(*pending_call);
+          QObject::connect(watcher, &QDBusPendingCallWatcher::finished, this,
+                           [=]() {
+                             refresh();
+                             watcher->deleteLater();
+                           });
+        }
       });
-    }
-  });
   list->addItem(wifiMeteredToggle);
 
   // Hidden Network
@@ -226,7 +352,8 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
   connect(hiddenNetworkButton, &ButtonControl::clicked, [=]() {
     QString ssid = InputDialog::getText(tr("Enter SSID"), this, "", false, 1);
     if (!ssid.isEmpty()) {
-      QString pass = InputDialog::getText(tr("Enter password"), this, tr("for \"%1\"").arg(ssid), true, -1);
+      QString pass = InputDialog::getText(tr("Enter password"), this,
+                                          tr("for \"%1\"").arg(ssid), true, -1);
       Network hidden_network;
       hidden_network.ssid = ssid.toUtf8();
       if (!pass.isEmpty()) {
@@ -241,7 +368,8 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
   list->addItem(hiddenNetworkButton);
 
   // Set initial config
-  wifi->updateGsmSettings(roamingEnabled, QString::fromStdString(params.get("GsmApn")), metered);
+  wifi->updateGsmSettings(
+      roamingEnabled, QString::fromStdString(params.get("GsmApn")), metered);
 
   main_layout->addWidget(new ScrollView(list, this));
   main_layout->addStretch(1);
@@ -280,7 +408,8 @@ void AdvancedNetworking::toggleTethering(bool enabled) {
 
 // WifiUI functions
 
-WifiUI::WifiUI(QWidget *parent, WifiManager* wifi) : QWidget(parent), wifi(wifi) {
+WifiUI::WifiUI(QWidget *parent, WifiManager *wifi)
+    : QWidget(parent), wifi(wifi) {
   QVBoxLayout *main_layout = new QVBoxLayout(this);
   main_layout->setContentsMargins(0, 0, 0, 0);
   main_layout->setSpacing(0);
@@ -290,9 +419,12 @@ WifiUI::WifiUI(QWidget *parent, WifiManager* wifi) : QWidget(parent), wifi(wifi)
     QPixmap pix(ASSET_PATH + "/icons/wifi_strength_" + s + ".svg");
     strengths.push_back(pix.scaledToHeight(68, Qt::SmoothTransformation));
   }
-  lock = QPixmap(ASSET_PATH + "icons/lock_closed.svg").scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
-  checkmark = QPixmap(ASSET_PATH + "icons/checkmark.svg").scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
-  circled_slash = QPixmap(ASSET_PATH + "icons/circled_slash.svg").scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
+  lock = QPixmap(ASSET_PATH + "icons/lock_closed.svg")
+             .scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
+  checkmark = QPixmap(ASSET_PATH + "icons/checkmark.svg")
+                  .scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
+  circled_slash = QPixmap(ASSET_PATH + "icons/circled_slash.svg")
+                      .scaledToWidth(ICON_WIDTH, Qt::SmoothTransformation);
 
   scanningLabel = new QLabel(tr("Scanning for networks..."));
   scanningLabel->setStyleSheet("font-size: 65px;");
@@ -348,7 +480,8 @@ void WifiUI::refresh() {
   bool is_empty = wifi->seenNetworks.isEmpty();
   scanningLabel->setVisible(is_empty);
   wifi_list_widget->setVisible(!is_empty);
-  if (is_empty) return;
+  if (is_empty)
+    return;
 
   setUpdatesEnabled(false);
 
@@ -366,24 +499,31 @@ void WifiUI::refresh() {
     } else if (network.security_type == SecurityType::WPA) {
       status_icon = lock;
     }
-    bool show_forget_btn = wifi->isKnownConnection(network.ssid) && !is_tethering_enabled;
+    bool show_forget_btn =
+        wifi->isKnownConnection(network.ssid) && !is_tethering_enabled;
     QPixmap strength = strengths[strengthLevel(network.strength)];
 
     auto item = getItem(n++);
     item->setItem(network, status_icon, show_forget_btn, strength);
     item->setVisible(true);
   }
-  for (; n < wifi_items.size(); ++n) wifi_items[n]->setVisible(false);
+  for (; n < wifi_items.size(); ++n)
+    wifi_items[n]->setVisible(false);
 
   setUpdatesEnabled(true);
 }
 
 WifiItem *WifiUI::getItem(int n) {
-  auto item = n < wifi_items.size() ? wifi_items[n] : wifi_items.emplace_back(new WifiItem(tr("CONNECTING..."), tr("FORGET")));
+  auto item = n < wifi_items.size() ? wifi_items[n]
+                                    : wifi_items.emplace_back(new WifiItem(
+                                          tr("CONNECTING..."), tr("FORGET")));
   if (!item->parentWidget()) {
-    QObject::connect(item, &WifiItem::connectToNetwork, this, &WifiUI::connectToNetwork);
+    QObject::connect(item, &WifiItem::connectToNetwork, this,
+                     &WifiUI::connectToNetwork);
     QObject::connect(item, &WifiItem::forgotNetwork, [this](const Network n) {
-      if (ConfirmationDialog::confirm(tr("Forget Wi-Fi Network \"%1\"?").arg(QString::fromUtf8(n.ssid)), tr("Forget"), this))
+      if (ConfirmationDialog::confirm(
+              tr("Forget Wi-Fi Network \"%1\"?").arg(QString::fromUtf8(n.ssid)),
+              tr("Forget"), this))
         wifi->forgetConnection(n.ssid);
     });
     wifi_list_widget->addItem(item);
@@ -393,7 +533,9 @@ WifiItem *WifiUI::getItem(int n) {
 
 // WifiItem
 
-WifiItem::WifiItem(const QString &connecting_text, const QString &forget_text, QWidget *parent) : QWidget(parent) {
+WifiItem::WifiItem(const QString &connecting_text, const QString &forget_text,
+                   QWidget *parent)
+    : QWidget(parent) {
   QHBoxLayout *hlayout = new QHBoxLayout(this);
   hlayout->setContentsMargins(44, 0, 73, 0);
   hlayout->setSpacing(50);
@@ -401,26 +543,33 @@ WifiItem::WifiItem(const QString &connecting_text, const QString &forget_text, Q
   hlayout->addWidget(ssidLabel = new ElidedLabel());
   ssidLabel->setObjectName("ssidLabel");
   ssidLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-  hlayout->addWidget(connecting = new QPushButton(connecting_text), 0, Qt::AlignRight);
+  hlayout->addWidget(connecting = new QPushButton(connecting_text), 0,
+                     Qt::AlignRight);
   connecting->setObjectName("connecting");
-  hlayout->addWidget(forgetBtn = new QPushButton(forget_text), 0, Qt::AlignRight);
+  hlayout->addWidget(forgetBtn = new QPushButton(forget_text), 0,
+                     Qt::AlignRight);
   forgetBtn->setObjectName("forgetBtn");
   hlayout->addWidget(iconLabel = new QLabel(), 0, Qt::AlignRight);
   hlayout->addWidget(strengthLabel = new QLabel(), 0, Qt::AlignRight);
 
   iconLabel->setFixedWidth(ICON_WIDTH);
-  QObject::connect(forgetBtn, &QPushButton::clicked, [this]() { emit forgotNetwork(network); });
+  QObject::connect(forgetBtn, &QPushButton::clicked,
+                   [this]() { emit forgotNetwork(network); });
   QObject::connect(ssidLabel, &ElidedLabel::clicked, [this]() {
-    if (network.connected == ConnectedType::DISCONNECTED) emit connectToNetwork(network);
+    if (network.connected == ConnectedType::DISCONNECTED)
+      emit connectToNetwork(network);
   });
 }
 
-void WifiItem::setItem(const Network &n, const QPixmap &status_icon, bool show_forget_btn, const QPixmap &strength_icon) {
+void WifiItem::setItem(const Network &n, const QPixmap &status_icon,
+                       bool show_forget_btn, const QPixmap &strength_icon) {
   network = n;
 
   ssidLabel->setText(n.ssid);
   ssidLabel->setEnabled(n.security_type != SecurityType::UNSUPPORTED);
-  ssidLabel->setFont(InterFont(55, network.connected == ConnectedType::DISCONNECTED ? QFont::Normal : QFont::Bold));
+  ssidLabel->setFont(InterFont(
+      55, network.connected == ConnectedType::DISCONNECTED ? QFont::Normal
+                                                           : QFont::Bold));
 
   connecting->setVisible(n.connected == ConnectedType::CONNECTING);
   forgetBtn->setVisible(show_forget_btn);
