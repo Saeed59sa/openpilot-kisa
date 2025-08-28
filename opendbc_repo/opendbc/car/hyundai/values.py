@@ -645,6 +645,16 @@ class CAR(Platforms):
     [HyundaiCarDocs("Genesis G90 2017-20", "All", car_parts=CarParts.common([CarHarness.hyundai_c]))],
     CarSpecs(mass=2200, wheelbase=3.15, steerRatio=12.069),
   )
+  # Genesis GV80 (1st Gen, CAN-FD)
+  GENESIS_GV80_1ST_GEN = HyundaiCanFDPlatformConfig(
+    [HyundaiCarDocs("Genesis GV80 (1st Gen, CAN-FD)", "All", car_parts=CarParts.common([CarHarness.hyundai_a]))],
+    CarSpecs(
+      mass=2200,        # TODO: refine after first drive / official spec
+      wheelbase=2.95,   # TODO: refine
+      steerRatio=13.0,  # from liveParameters (log)
+      tireStiffnessFactor=0.70
+    ),
+  )
   GENESIS_GV80 = HyundaiCanFDPlatformConfig(
     [HyundaiCarDocs("Genesis GV80 2023", "All", car_parts=CarParts.common([CarHarness.hyundai_m]))],
     CarSpecs(mass=2258, wheelbase=2.95, steerRatio=14.14),
