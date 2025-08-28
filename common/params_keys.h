@@ -321,4 +321,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LFAButtonEngagement", {PERSISTENT, BOOL, "0"}},
     {"TimeFactorModHours", {PERSISTENT, STRING, "0"}},
     {"TimeFactorModMinutes", {PERSISTENT, STRING, "0"}},
+    {"EnableRemoteAccess", {PERSISTENT, BOOL, "0"}},
+    {"RemoteAccessLoginURL", {PERSISTENT, STRING, ""}},
 };
