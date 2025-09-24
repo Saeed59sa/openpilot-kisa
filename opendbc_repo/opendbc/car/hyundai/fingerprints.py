@@ -1258,6 +1258,7 @@ FW_VERSIONS = {
     (Ecu.fwdCamera, 0x7c4, None): [
       b'\xf1\x00JX1 MFC  AT USA LHD 1.00 1.02 99211-T6110 220513',
       b'\xf1\x00JX1 MFC  AT MES LHD 1.00 1.04 99211-T6010 200514',
+      b'\xf1\x00JX1 MFC  AT KOR LHD 1.00 1.04 99211-T6010 200514',
     ],
     (Ecu.fwdRadar, 0x7d0, None): [
       b'\xf1\x00JX1_ SCC FHCUP      1.00 1.01 99110-T6100         ',
